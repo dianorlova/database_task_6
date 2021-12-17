@@ -17,15 +17,18 @@ class About(tk.Toplevel):
         self.label.pack()
 
 
+# создание главного окна приложения
 def main_window(connection):
     app = tk.Tk()
     app.geometry("800x750+350+0")
     app.title("Библиотека программных продуктов")
     app["bg"] = "gray16"
 
+    # создание окна с ошибкой
     def onError(error_message):
         mb.showerror("Ошибка", error_message)
 
+    # преобразование массива одномерно массива продукта в строку
     def to_str(data_list):
         string = ""
         for i in range(len(data_list)):
@@ -37,11 +40,14 @@ def main_window(connection):
                      + str(data_list[i][7]) + "\n"
         return string
 
+    # создание дополнительного окна приложения
     def createNewWindow():
 
+        # создание окна с ошибкой
         def onError(error_message):
             mb.showerror("Ошибка", error_message)
 
+        # создание окна успешного выполнения
         def onInfo(message):
             mb.showinfo("Информация", message)
 
@@ -50,6 +56,7 @@ def main_window(connection):
         newWindow.title("Добавление нового продукта")
         newWindow.geometry("600x650+450+50")
 
+        # настройка строк ввода данных для поиска продукта
         tk.Label(newWindow,
                  text="Введите название продукта",
                  font=("Comic Sans MS", 18),
@@ -108,18 +115,27 @@ def main_window(connection):
         message = "Продукт успешно добавлен в библиотеку"
         error_message = "Ошибка добавления продукта в библиотеку.\n\nЗаполните все поля!"
 
+        # метод добавления нового продукта и производителя в базу данных
         def add_product():
+            # если производитель с таким именем, которое ввел пользователь не существет,
+            # то добавляем производителя в таблицу providers
+            if len(get_provider_id(connection, product_provider.get())) == 0:
+                add_provider(connection, product_provider.get())
+            # получаем id производителя из базы данных по имени производителя
+            provider_id = get_provider_id(connection, product_provider.get())
+            # добавляем продукт в library
             add_db_row(
                 connection,
                 product_name.get(),
                 product_category.get(),
-                product_provider.get(),
+                provider_id[0][0],
                 product_requirements.get(),
                 product_size.get(),
                 product_value.get(),
                 product_path.get(),
             )
 
+        # проверяем правильность заполнения полей для добавления продукта
         def check_new_product(_):
             if (product_name.get() == "" or product_category.get() == "" or product_provider.get() == "" or
                     product_requirements.get() == "" or str(product_size.get()) == "" or
@@ -138,13 +154,15 @@ def main_window(connection):
         add.bind('<Button-1>', check_new_product)
         add.pack(pady=20)
 
-    def create_functions_for_lostbox(data_list):
+    # метод для создания списка категорий функциональностей
+    def create_functions_for_listbox(data_list):
         new = []
         for i in range(len(data_list)):
             for j in range(len(data_list[i])):
                 new.append(data_list[i][j])
         return new
 
+    # настройка полей ввода для поиска продукта
     f_top = Frame(app)
     tk.Label(f_top,
              text="Библиотека программных продуктов",
@@ -165,7 +183,7 @@ def main_window(connection):
              bg="gray16", fg="white").pack()
 
     category = create_category_list(connection)
-    category = list(set(create_functions_for_lostbox(category)))
+    category = list(set(create_functions_for_listbox(category)))
 
     lb = Listbox(app, font=("Comic Sans MS", 16), height=6)
     for i in category:
@@ -187,28 +205,46 @@ def main_window(connection):
                       bg="lightblue", width=15,
                       height=1)
 
-    # error_message = "Не заполнены необходимые поля!"
-
+    # метод для поиска продукта
     def find(_):
+        # проверяем правильность заполнения полей
         if product_name.get() == "" or lb.get(ANCHOR) == "" or product_provider.get() == "":
             onError("Не заполнены необходимые поля")
         else:
             try:
+                # получаем id производителя из таблицы providers по имени производителя
+                provider_id = get_provider_id(connection, product_provider.get())
+                # создаем список продуктов-результатов поиска
                 data_list1 = find_local(
                     connection,
                     product_name.get(),
                     lb.get(ANCHOR),
-                    product_provider.get(),
+                    provider_id[0][0],
                 )
+                # проверяем что список продуктов-результатов не пустой
                 if len(data_list1) == 0:
                     onError("Продукт не найден!\n\nПроверьте правильность заполнения полей." +
                             " В частности, название продукта должно быть уникальным.\n\n" +
                             "Для получения информации о текущей БД щёлкните на кнопку \"Показать базу данных\"" +
                             " на главном окне приложения.")
-                    return 0
+                else:
+                    # если не пустой выполняем поиск аналогов и вывод результатов
+                    data_list2 = find_category(connection, lb.get(ANCHOR))
 
-                data_list2 = find_category(connection, lb.get(ANCHOR))
-                return About(app, "Найденный продукт:\n" + to_str(data_list1) + "\n\nАналоги:\n" + to_str(data_list2))
+                    # меняем значения производителя в продукте-результате поиска для красивого вывода
+                    for i in range(len(data_list1)):
+                        provider_name = get_provider_name(connection, data_list1[i][3])
+                        data_list1[i][3] = provider_name[0][0]
+                        print(data_list1[i][3])
+
+                    # меняем значения производителя в аналогах поиска для красивого вывода
+                    for i in range(len(data_list2)):
+                        provider_name = get_provider_name(connection, data_list2[i][3])
+                        data_list2[i][3] = provider_name[0][0]
+                        print(data_list2[i][3])
+
+                    # создаем новое окно с красивым выводом результатов поиска продукта и аналогов
+                    return About(app, "Найденный продукт:\n" + to_str(data_list1) + "\n\nАналоги:\n" + to_str(data_list2))
             except:
                 onError("Ошибка запроса к БД. Проверьте правильность заполнения полей")
 
@@ -260,6 +296,10 @@ def main_window(connection):
                 table.column(header, anchor='center', width=50)
 
         data_list3 = output_all_in_table(connection)
+
+        for i in range(len(data_list3)):
+            provider_name = get_provider_name(connection, data_list3[i][3])
+            data_list3[i][3] = provider_name
 
         for row in data_list3:
             table.insert('', END, values=row)
