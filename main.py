@@ -2,7 +2,7 @@ from contextlib import closing
 
 import psycopg2
 
-from library.new_main_window import *
+from library.main_window import *
 
 
 if __name__ == '__main__':
